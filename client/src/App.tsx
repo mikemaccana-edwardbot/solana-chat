@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useWalletAccountTransactionSigner } from "@solana/react";
 import { useWalletAccountMessageSigner } from "@solana/react";
 import type { UiWalletAccount } from "@wallet-standard/ui";
@@ -8,6 +8,7 @@ import { PickHomeserver } from "./components/PickHomeserver";
 import { StatusScreen } from "./components/StatusScreen";
 import { Chat } from "./components/Chat";
 import { loginToHomeserver, registerHomeserverOnchain } from "./homeserver";
+import { lookupHomeserver } from "./program";
 import { initMatrixClient, startSync } from "./matrix";
 
 export function App() {
@@ -69,8 +70,8 @@ export function App() {
 }
 
 /// Handles the homeserver selection, onchain registration, and login.
-/// Separated into its own component so @solana/react hooks have
-/// a stable walletAccount reference.
+/// Checks for an existing onchain delegation first — if the wallet already
+/// has a delegation matching the selected homeserver, skips the register step.
 function HomeserverFlow({
   walletAccount,
   walletAddress,
@@ -95,10 +96,19 @@ function HomeserverFlow({
     try {
       onError("");
 
-      // Step 1: Register homeserver onchain
+      // Step 1: Check if wallet already has a matching delegation onchain
       onStageChange("registering");
-      onStatusChange("Registering homeserver onchain...");
-      await registerHomeserverOnchain(transactionSigner, url);
+      onStatusChange("Checking existing delegation...");
+      const existingHomeserver = await lookupHomeserver(walletAddress);
+
+      if (existingHomeserver === url) {
+        // Delegation already exists and matches — skip registration
+        onStatusChange("Delegation found, signing in...");
+      } else {
+        // No delegation or different homeserver — register onchain
+        onStatusChange("Registering homeserver onchain...");
+        await registerHomeserverOnchain(transactionSigner, url);
+      }
 
       // Step 2: Log in to the homeserver
       onStageChange("logging-in");
@@ -118,7 +128,12 @@ function HomeserverFlow({
     }
   }
 
-  return <PickHomeserver onSelect={handleHomeserverSelected} />;
+  return (
+    <PickHomeserver
+      walletAddress={walletAddress}
+      onSelect={handleHomeserverSelected}
+    />
+  );
 }
 
 function truncateAddress(address: string): string {

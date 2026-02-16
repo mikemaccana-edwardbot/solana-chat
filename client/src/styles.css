@@ -409,6 +409,152 @@ input {
   font-size: 0.85rem;
 }
 
+/* Room directory */
+
+.room-directory-toggle {
+  display: block;
+  width: calc(100% - 1.5rem);
+  margin: 0 0.75rem 0.75rem;
+  padding: 0.5rem;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.room-directory-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.room-directory {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.room-directory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.room-directory-header h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.room-directory-close {
+  background: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  padding: 0.25rem;
+}
+
+.room-directory-close:hover {
+  color: var(--text);
+}
+
+.room-directory-search {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.375rem;
+}
+
+.room-directory-search input {
+  padding: 0.5rem 0.625rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.room-directory-search input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.room-directory-search button {
+  padding: 0.5rem 0.75rem;
+  background: var(--accent);
+  color: white;
+  border-radius: 0.375rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.room-directory-error {
+  color: var(--error);
+  font-size: 0.8rem;
+}
+
+.room-directory-list {
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.room-directory-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  background: var(--bg);
+  border-radius: 0.375rem;
+}
+
+.room-directory-info {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.room-directory-name {
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.room-directory-topic {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-directory-members {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.room-directory-join {
+  padding: 0.375rem 0.625rem;
+  background: var(--accent);
+  color: white;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.room-directory-join:disabled {
+  opacity: 0.5;
+}
+
+.room-directory-empty {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 0.5rem;
+}
+
 /* Messages */
 
 .message-area {

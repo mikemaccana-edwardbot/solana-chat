@@ -9,6 +9,8 @@ import {
 } from "../matrix";
 import { FindUser } from "./FindUser";
 import { CreateGroup } from "./CreateGroup";
+import { RoomDirectory } from "./RoomDirectory";
+import { hexLocalpartToBase58 } from "../encoding";
 
 interface ChatProps {
   homeserverUrl: string;
@@ -114,9 +116,12 @@ export function Chat({ homeserverUrl }: ChatProps) {
             )}
           </button>
         ))}
-        {rooms.length === 0 && (
-          <p className="no-rooms">No rooms yet. Join one from the room directory.</p>
-        )}
+        <RoomDirectory
+          onRoomJoined={(roomId) => {
+            setRooms(getJoinedRooms());
+            setActiveRoomId(roomId);
+          }}
+        />
       </nav>
 
       <article className="message-area">
@@ -125,8 +130,11 @@ export function Chat({ homeserverUrl }: ChatProps) {
             <ol className="message-list">
               {messages.map((message) => (
                 <li key={message.eventId} className="message">
-                  <span className="message-sender">
-                    {displayNames[message.sender] || message.sender}
+                  <span
+                    className="message-sender"
+                    title={displayNames[message.sender] || message.sender}
+                  >
+                    {formatSender(message.sender, displayNames[message.sender])}
                   </span>
                   <span className="message-body">{message.body}</span>
                   <time className="message-time">
@@ -156,6 +164,27 @@ export function Chat({ homeserverUrl }: ChatProps) {
       </article>
     </section>
   );
+}
+
+/// Format a sender for display. If we have a display name (base58 address set by
+/// the server), truncate it. If not, try to extract the hex localpart from the
+/// Matrix user ID and convert it back to a truncated base58 address.
+function formatSender(userId: string, displayName: string | undefined): string {
+  if (displayName && displayName !== userId) {
+    return truncateAddress(displayName);
+  }
+  // Try to extract hex localpart from @hexhexhex:server
+  const match = userId.match(/^@([0-9a-f]{64}):/);
+  if (match) {
+    const base58 = hexLocalpartToBase58(match[1]);
+    return truncateAddress(base58);
+  }
+  return userId;
+}
+
+function truncateAddress(address: string): string {
+  if (address.length <= 12) return address;
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
 
 function formatTime(timestamp: number): string {

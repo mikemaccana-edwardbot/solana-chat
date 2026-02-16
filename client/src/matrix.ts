@@ -154,6 +154,26 @@ export async function getDisplayName(userId: string): Promise<string> {
   }
 }
 
+/// Fetch the public room directory from the homeserver.
+export async function getPublicRooms(
+  searchTerm?: string
+): Promise<Array<{ roomId: string; name: string; topic: string; memberCount: number; alias: string | null }>> {
+  if (!client) throw new Error("Matrix client not initialized");
+
+  const response = await client.publicRooms({
+    limit: 50,
+    filter: searchTerm ? { generic_search_term: searchTerm } : undefined,
+  });
+
+  return (response.chunk || []).map((room) => ({
+    roomId: room.room_id,
+    name: room.name || room.room_id,
+    topic: room.topic || "",
+    memberCount: room.num_joined_members,
+    alias: room.canonical_alias || null,
+  }));
+}
+
 /// Stop the client and clean up.
 export function stopClient(): void {
   if (client) {

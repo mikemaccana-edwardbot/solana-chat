@@ -77,15 +77,16 @@ describe("hex encoding", () => {
 });
 
 describe("base58 ↔ hex localpart conversion", () => {
-  test("converts base58 address to 64-char hex localpart", () => {
+  test("converts base58 address to prefixed 71-char hex localpart", () => {
     const bytes = new Uint8Array(32);
     for (let i = 0; i < 32; i++) {
       bytes[i] = i;
     }
     const base58 = bytesToBase58(bytes);
     const hex = base58ToHexLocalpart(base58);
-    assert.equal(hex.length, 64, "Hex localpart must be exactly 64 chars");
-    assert.match(hex, /^[0-9a-f]+$/, "Hex localpart must be lowercase hex only");
+    assert.equal(hex.length, 71, "Hex localpart must be 'solana_' (7) + 64 hex chars = 71");
+    assert.ok(hex.startsWith("solana_"), "Must start with solana_ prefix");
+    assert.match(hex.slice(7), /^[0-9a-f]+$/, "Hex portion must be lowercase hex only");
   });
 
   test("roundtrips base58 → hex → base58", () => {
@@ -99,11 +100,11 @@ describe("base58 ↔ hex localpart conversion", () => {
     assert.equal(recovered, original);
   });
 
-  test("hex localpart is valid for Matrix (lowercase, no special chars)", () => {
+  test("hex localpart is valid for Matrix (lowercase, underscores allowed)", () => {
     const bytes = new Uint8Array(32).fill(255);
     const hex = base58ToHexLocalpart(bytesToBase58(bytes));
     // Matrix localparts allow: a-z, 0-9, ., _, =, -, /
-    assert.match(hex, /^[a-z0-9]+$/);
+    assert.match(hex, /^[a-z0-9_]+$/);
   });
 
   test("different keys produce different localparts (no collisions)", () => {
@@ -161,12 +162,12 @@ describe("borsh string encoding", () => {
 });
 
 describe("walletToMatrixUserId", () => {
-  test("produces valid Matrix user ID format", () => {
+  test("produces valid Matrix user ID format with solana_ prefix", () => {
     const bytes = new Uint8Array(32).fill(42);
     const base58 = bytesToBase58(bytes);
     const userId = walletToMatrixUserId(base58, "chat.example.com");
-    assert.ok(userId.startsWith("@"), "Must start with @");
+    assert.ok(userId.startsWith("@solana_"), "Must start with @solana_");
     assert.ok(userId.includes(":chat.example.com"), "Must contain server");
-    assert.equal(userId.split(":")[0].length, 65, "@ + 64 hex chars");
+    assert.equal(userId.split(":")[0].length, 72, "@ + solana_ (7) + 64 hex chars = 72");
   });
 });

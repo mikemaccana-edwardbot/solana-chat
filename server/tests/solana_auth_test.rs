@@ -23,23 +23,24 @@ fn test_signing_key(seed: u8) -> SigningKey {
 }
 
 #[test]
-fn pubkey_to_hex_localpart_is_64_lowercase_chars() {
+fn pubkey_to_hex_localpart_has_solana_prefix_and_64_hex_chars() {
     let signing_key = test_signing_key(1);
     let verifying_key = signing_key.verifying_key();
-    let hex_localpart = hex::encode(verifying_key.as_bytes());
+    let hex_localpart = format!("solana_{}", hex::encode(verifying_key.as_bytes()));
 
-    assert_eq!(hex_localpart.len(), 64);
-    assert!(hex_localpart.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+    assert_eq!(hex_localpart.len(), 71); // "solana_" (7) + 64 hex chars
+    assert!(hex_localpart.starts_with("solana_"));
+    assert!(hex_localpart[7..].chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
 }
 
 #[test]
 fn hex_localpart_is_valid_matrix_localpart() {
     let signing_key = test_signing_key(2);
     let verifying_key = signing_key.verifying_key();
-    let hex_localpart = hex::encode(verifying_key.as_bytes());
+    let hex_localpart = format!("solana_{}", hex::encode(verifying_key.as_bytes()));
 
     // Matrix localpart allowed chars: a-z, 0-9, ., _, =, -, /
-    // Hex only uses 0-9 and a-f, which is a subset
+    // "solana_" prefix uses lowercase + underscore, hex uses 0-9 and a-f — all valid
     let valid_matrix_chars = |c: char| c.is_ascii_lowercase() || c.is_ascii_digit() || "._=-/".contains(c);
     assert!(hex_localpart.chars().all(valid_matrix_chars));
 }
@@ -50,11 +51,12 @@ fn hex_localpart_roundtrips_to_base58_address() {
     let verifying_key = signing_key.verifying_key();
     let pubkey_bytes = verifying_key.as_bytes();
 
-    // Hex encode (what we store as Matrix localpart)
-    let hex_localpart = hex::encode(pubkey_bytes);
+    // Hex encode with prefix (what we store as Matrix localpart)
+    let hex_localpart = format!("solana_{}", hex::encode(pubkey_bytes));
 
-    // Recover the original bytes from hex
-    let recovered_bytes = hex::decode(&hex_localpart).expect("hex decode should work");
+    // Strip prefix and recover the original bytes from hex
+    let hex_part = hex_localpart.strip_prefix("solana_").expect("should have prefix");
+    let recovered_bytes = hex::decode(hex_part).expect("hex decode should work");
     assert_eq!(recovered_bytes.as_slice(), pubkey_bytes.as_slice());
 
     // Convert to base58 (what users see as display name)
@@ -185,7 +187,7 @@ fn no_two_addresses_produce_same_hex_localpart() {
     let mut seen = std::collections::HashSet::new();
     for i in 0..100u8 {
         let signing_key = test_signing_key(i);
-        let hex_localpart = hex::encode(signing_key.verifying_key().as_bytes());
+        let hex_localpart = format!("solana_{}", hex::encode(signing_key.verifying_key().as_bytes()));
         assert!(seen.insert(hex_localpart), "hex localpart collision detected");
     }
 }
@@ -242,12 +244,12 @@ fn full_auth_flow_simulation() {
     // Verify
     assert!(server_verifying_key.verify(server_challenge.as_bytes(), &server_signature).is_ok());
 
-    // Derive Matrix localpart
-    let hex_localpart = hex::encode(pubkey_bytes);
+    // Derive Matrix localpart with solana_ prefix
+    let hex_localpart = format!("solana_{}", hex::encode(pubkey_bytes));
     let expected_user_id = format!("@{hex_localpart}:{server_name}");
 
-    assert_eq!(hex_localpart.len(), 64);
-    assert!(expected_user_id.starts_with('@'));
+    assert_eq!(hex_localpart.len(), 71); // "solana_" (7) + 64 hex chars
+    assert!(expected_user_id.starts_with("@solana_"));
     assert!(expected_user_id.contains(':'));
 
     // Display name would be the base58 address

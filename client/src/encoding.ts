@@ -55,16 +55,23 @@ export function hexToBytes(hex: string): Uint8Array {
   return bytes;
 }
 
-/// Convert a base58 Solana address to a hex-encoded Matrix localpart.
-/// This is lossless — hex(raw_pubkey_bytes) gives exactly 64 lowercase
-/// chars, which is a valid Matrix localpart.
+/// Prefix for Solana wallet Matrix localparts. Identifies the chain and
+/// distinguishes wallet accounts from regular Matrix accounts.
+const SOLANA_LOCALPART_PREFIX = "solana_";
+
+/// Convert a base58 Solana address to a prefixed hex Matrix localpart.
+/// Format: "solana_" + hex(raw_pubkey_bytes) = 71 chars, all valid Matrix localpart characters.
 export function base58ToHexLocalpart(base58Address: string): string {
-  return bytesToHex(base58ToBytes(base58Address));
+  return SOLANA_LOCALPART_PREFIX + bytesToHex(base58ToBytes(base58Address));
 }
 
-/// Convert a hex-encoded Matrix localpart back to a base58 Solana address.
+/// Convert a prefixed hex Matrix localpart back to a base58 Solana address.
+/// Strips the "solana_" prefix before decoding.
 export function hexLocalpartToBase58(hexLocalpart: string): string {
-  return bytesToBase58(hexToBytes(hexLocalpart));
+  const hex = hexLocalpart.startsWith(SOLANA_LOCALPART_PREFIX)
+    ? hexLocalpart.slice(SOLANA_LOCALPART_PREFIX.length)
+    : hexLocalpart;
+  return bytesToBase58(hexToBytes(hex));
 }
 
 /// Encode a string in Borsh format (4-byte LE length prefix + UTF-8 bytes).

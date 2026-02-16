@@ -173,8 +173,8 @@ function formatSender(userId: string, displayName: string | undefined): string {
   if (displayName && displayName !== userId) {
     return truncateAddress(displayName);
   }
-  // Try to extract hex localpart from @hexhexhex:server
-  const match = userId.match(/^@([0-9a-f]{64}):/);
+  // Try to extract Solana hex localpart from @solana_hexhexhex:server
+  const match = userId.match(/^@(solana_[0-9a-f]{64}):/);
   if (match) {
     const base58 = hexLocalpartToBase58(match[1]);
     return truncateAddress(base58);

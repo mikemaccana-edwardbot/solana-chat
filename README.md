@@ -125,18 +125,18 @@ Vite + React web app with plain CSS. No Tailwind, no utility classes — semanti
 
 ## Identity Scheme
 
-Matrix localparts must be lowercase. Base58 has uppercase letters, and lowercasing creates collisions (e.g. `1` and `l` are different in base58 but both lowercase). Instead, the raw 32-byte public key is hex-encoded:
+Matrix localparts must be lowercase. Base58 has uppercase letters, and lowercasing creates collisions (e.g. `1` and `l` are different in base58 but both lowercase). Instead, the raw 32-byte public key is hex-encoded with a `solana_` prefix:
 
-- Always exactly 64 characters
-- Always lowercase
-- Lossless — hex decodes back to the exact public key
-- Valid Matrix localpart characters (a-f, 0-9)
+- **`solana_`** prefix identifies the chain and distinguishes wallet accounts from regular Matrix accounts
+- 64 hex characters after the prefix — always lowercase, always lossless
+- Extensible to other chains (`ethereum_`, `cosmos_`, etc.)
+- Total localpart length: 71 characters (well under Matrix's limit)
 
 The base58 address is stored as the Matrix display name so users see the familiar Solana format.
 
 | Layer | Value |
 |-------|-------|
-| Matrix user ID | `@a1b2c3d4e5f6...64hex:server` |
+| Matrix user ID | `@solana_a1b2c3d4e5f6...64hex:server` |
 | Display name | `7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU` |
 | Onchain PDA seeds | `["delegation", raw_pubkey_bytes]` |
 

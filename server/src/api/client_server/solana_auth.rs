@@ -152,8 +152,10 @@ pub fn verify_solana_login(request: &SolanaLoginRequest) -> Result<(String, Stri
         .verify(message.as_bytes(), &signature)
         .map_err(|_| Error::BadRequest(error_kind, "Signature verification failed."))?;
 
-    // Hex-encode the public key for the Matrix localpart (always lowercase, always 64 chars)
-    let hex_localpart = hex::encode(pubkey_array);
+    // Prefix + hex-encode the public key for the Matrix localpart.
+    // "solana_" prefix identifies this as a Solana wallet account and
+    // distinguishes it from regular Matrix accounts or other chains.
+    let hex_localpart = format!("solana_{}", hex::encode(pubkey_array));
     let base58_address = request.address.clone();
 
     info!(

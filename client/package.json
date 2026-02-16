@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "npx tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
     "@solana/kit": "^5.5.1",
@@ -16,9 +17,12 @@
     "solana-kite": "^3.2.0"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^4",
+    "jsdom": "^28.1.0",
     "typescript": "^5",
     "vite": "^7"
   }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { publicKeyToHex } from "../wallet";
+import { base58ToHexLocalpart } from "../encoding";
 import { startDirectMessage, getDisplayName } from "../matrix";
 
 interface FindUserProps {
@@ -30,8 +30,6 @@ export function FindUser({ homeserverDomain, onRoomCreated }: FindUserProps) {
       // Verify the user exists by fetching their profile
       const displayName = await getDisplayName(userId);
       if (displayName === userId) {
-        // getDisplayName returns the userId when profile doesn't exist —
-        // the user may not have registered yet
         setStatus("error");
         setErrorMessage("No account found for this wallet address.");
         return;
@@ -70,24 +68,4 @@ export function FindUser({ homeserverDomain, onRoomCreated }: FindUserProps) {
       )}
     </form>
   );
-}
-
-/// Decode a base58 Solana address to raw bytes, then hex-encode for Matrix localpart.
-function base58ToHexLocalpart(base58Address: string): string {
-  const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  let num = BigInt(0);
-  for (const character of base58Address) {
-    const index = ALPHABET.indexOf(character);
-    if (index === -1) throw new Error(`Invalid base58 character: ${character}`);
-    num = num * 58n + BigInt(index);
-  }
-
-  // Convert to 32 bytes (Solana public keys are always 32 bytes)
-  const bytes = new Uint8Array(32);
-  for (let i = 31; i >= 0; i--) {
-    bytes[i] = Number(num & 0xffn);
-    num = num >> 8n;
-  }
-
-  return publicKeyToHex(bytes);
 }

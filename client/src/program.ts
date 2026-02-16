@@ -14,6 +14,7 @@ import {
   type Instruction,
 } from "@solana/kit";
 import type { SolanaWallet } from "./types";
+import { base58ToBytes, borshEncodeString, borshDecodeString } from "./encoding";
 
 /// The homeserver-registry program ID.
 const PROGRAM_ID: Address = address("27JU28YBf5RJmEHAn9BwnWFyfPMLkUdSafKgz9xQB9zn");
@@ -28,7 +29,7 @@ const REGISTER_DISCRIMINATOR = new Uint8Array([211, 124, 67, 15, 211, 194, 178, 
 async function deriveDelegationPda(ownerAddress: Address): Promise<[Address, number]> {
   const seeds = [
     new TextEncoder().encode("delegation"),
-    decodeBase58Address(ownerAddress),
+    base58ToBytes(ownerAddress),
   ];
   const [pda, bump] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds });
   return [pda, bump];
@@ -36,31 +37,11 @@ async function deriveDelegationPda(ownerAddress: Address): Promise<[Address, num
 
 /// Encode the `register` instruction data: Anchor discriminator + borsh string.
 function encodeRegisterData(homeserver: string): Uint8Array {
-  const homeserverBytes = new TextEncoder().encode(homeserver);
-  // Borsh string: 4-byte LE length prefix + UTF-8 bytes
-  const data = new Uint8Array(REGISTER_DISCRIMINATOR.length + 4 + homeserverBytes.length);
+  const borshString = borshEncodeString(homeserver);
+  const data = new Uint8Array(REGISTER_DISCRIMINATOR.length + borshString.length);
   data.set(REGISTER_DISCRIMINATOR, 0);
-  const lengthOffset = REGISTER_DISCRIMINATOR.length;
-  new DataView(data.buffer).setUint32(lengthOffset, homeserverBytes.length, true);
-  data.set(homeserverBytes, lengthOffset + 4);
+  data.set(borshString, REGISTER_DISCRIMINATOR.length);
   return data;
-}
-
-/// Decode a base58 address to raw 32 bytes.
-function decodeBase58Address(base58: string): Uint8Array {
-  const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  let num = BigInt(0);
-  for (const character of base58) {
-    const index = ALPHABET.indexOf(character);
-    if (index === -1) throw new Error(`Invalid base58 character: ${character}`);
-    num = num * 58n + BigInt(index);
-  }
-  const bytes = new Uint8Array(32);
-  for (let i = 31; i >= 0; i--) {
-    bytes[i] = Number(num & 0xffn);
-    num = num >> 8n;
-  }
-  return bytes;
 }
 
 /// Serialize a compiled transaction to the Solana wire format.
@@ -164,15 +145,12 @@ export async function lookupHomeserver(
   if (!accountInfo.value) return null;
 
   // Decode account data:
-  // 8 bytes Anchor discriminator + 32 bytes owner pubkey + 4 bytes string length + string
+  // 8 bytes Anchor discriminator + 32 bytes owner pubkey + borsh string (homeserver)
   const raw = accountInfo.value.data;
   const data = Uint8Array.from(atob(raw[0] as string), (character) => character.charCodeAt(0));
   const DISCRIMINATOR_LENGTH = 8;
   const PUBKEY_LENGTH = 32;
-  const offset = DISCRIMINATOR_LENGTH + PUBKEY_LENGTH;
-  const stringLength = new DataView(data.buffer).getUint32(offset, true);
-  const decoder = new TextDecoder();
-  const homeserver = decoder.decode(data.subarray(offset + 4, offset + 4 + stringLength));
+  const [homeserver] = borshDecodeString(data, DISCRIMINATOR_LENGTH + PUBKEY_LENGTH);
 
   return homeserver;
 }

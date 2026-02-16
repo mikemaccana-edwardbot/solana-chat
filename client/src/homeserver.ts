@@ -1,4 +1,5 @@
 import type { SolanaWallet, NonceResponse } from "./types";
+import { bytesToBase58 } from "./encoding";
 import { publicKeyToBase58 } from "./wallet";
 import { registerHomeserverOnchain as registerOnchain } from "./program";
 
@@ -13,29 +14,6 @@ async function fetchNonce(homeserverUrl: string, address: string): Promise<Nonce
     throw new Error(`Failed to get nonce: ${response.statusText}`);
   }
   return response.json();
-}
-
-/// Base58-encode raw bytes. Used for the signature.
-function bytesToBase58(bytes: Uint8Array): string {
-  const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  let num = BigInt(0);
-  for (const byte of bytes) {
-    num = num * 256n + BigInt(byte);
-  }
-  let encoded = "";
-  while (num > 0n) {
-    const remainder = num % 58n;
-    num = num / 58n;
-    encoded = ALPHABET[Number(remainder)] + encoded;
-  }
-  for (const byte of bytes) {
-    if (byte === 0) {
-      encoded = "1" + encoded;
-    } else {
-      break;
-    }
-  }
-  return encoded;
 }
 
 /// Log in to the homeserver using Solana wallet signature.

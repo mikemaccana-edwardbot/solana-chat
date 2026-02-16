@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { walletToMatrixUserId } from "../encoding";
 import { createGroupChat } from "../matrix";
 
 interface CreateGroupProps {
@@ -22,16 +23,14 @@ export function CreateGroup({ homeserverDomain, onRoomCreated }: CreateGroupProp
     setErrorMessage("");
 
     try {
-      // Parse wallet addresses, convert to Matrix user IDs
       const walletAddresses = membersInput
         .split(/[,\n]/)
         .map((address) => address.trim())
         .filter(Boolean);
 
-      const userIds = walletAddresses.map((address) => {
-        const hexLocalpart = base58ToHex(address);
-        return `@${hexLocalpart}:${homeserverDomain}`;
-      });
+      const userIds = walletAddresses.map((address) =>
+        walletToMatrixUserId(address, homeserverDomain)
+      );
 
       const roomId = await createGroupChat(groupName.trim(), userIds);
 
@@ -97,23 +96,4 @@ export function CreateGroup({ homeserverDomain, onRoomCreated }: CreateGroupProp
       )}
     </form>
   );
-}
-
-/// Decode a base58 Solana address to hex for Matrix localpart.
-function base58ToHex(base58Address: string): string {
-  const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  let num = BigInt(0);
-  for (const character of base58Address) {
-    const index = ALPHABET.indexOf(character);
-    if (index === -1) throw new Error(`Invalid base58 character: ${character}`);
-    num = num * 58n + BigInt(index);
-  }
-  const bytes = new Uint8Array(32);
-  for (let i = 31; i >= 0; i--) {
-    bytes[i] = Number(num & 0xffn);
-    num = num >> 8n;
-  }
-  return Array.from(bytes)
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
 }

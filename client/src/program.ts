@@ -1,12 +1,11 @@
 import {
   address,
-  getProgramDerivedAddress,
   type Address,
   type Instruction,
   type TransactionModifyingSigner,
 } from "@solana/kit";
-import { connect } from "solana-kite";
-import { base58ToBytes, borshEncodeString, borshDecodeString } from "./encoding";
+import { connect, getPDAAndBump } from "solana-kite";
+import { borshEncodeString, borshDecodeString } from "./encoding";
 
 /// The homeserver-registry program ID.
 const PROGRAM_ID: Address = address("27JU28YBf5RJmEHAn9BwnWFyfPMLkUdSafKgz9xQB9zn");
@@ -16,16 +15,6 @@ const SYSTEM_PROGRAM: Address = address("11111111111111111111111111111111");
 
 /// Anchor instruction discriminator for `register` (from IDL).
 const REGISTER_DISCRIMINATOR = new Uint8Array([211, 124, 67, 15, 211, 194, 178, 240]);
-
-/// Derive the delegation PDA for a wallet address.
-async function deriveDelegationPda(ownerAddress: Address): Promise<[Address, number]> {
-  const seeds = [
-    new TextEncoder().encode("delegation"),
-    base58ToBytes(ownerAddress),
-  ];
-  const [pda, bump] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds });
-  return [pda, bump];
-}
 
 /// Encode the `register` instruction data: Anchor discriminator + borsh string.
 function encodeRegisterData(homeserver: string): Uint8Array {
@@ -37,15 +26,19 @@ function encodeRegisterData(homeserver: string): Uint8Array {
 }
 
 /// Register a homeserver delegation onchain.
-/// Uses Kite's sendTransactionFromInstructionsWithWalletApp — it handles
-/// blockhash, transaction building, signing via the browser wallet, and sending.
+/// Uses Kite's getPDAAndBump for PDA derivation and
+/// sendTransactionFromInstructionsWithWalletApp for the full send flow.
 export async function registerHomeserverOnchain(
   transactionSigner: TransactionModifyingSigner,
   homeserver: string,
   rpcUrl: string = "https://api.devnet.solana.com"
 ): Promise<string> {
   const ownerAddress = transactionSigner.address;
-  const [delegationPda] = await deriveDelegationPda(ownerAddress);
+
+  const { pda: delegationPda } = await getPDAAndBump(
+    PROGRAM_ID,
+    ["delegation", ownerAddress]
+  );
 
   const instruction: Instruction = {
     programAddress: PROGRAM_ID,
@@ -73,7 +66,11 @@ export async function lookupHomeserver(
   rpcUrl: string = "https://api.devnet.solana.com"
 ): Promise<string | null> {
   const ownerAddress = address(walletAddress);
-  const [delegationPda] = await deriveDelegationPda(ownerAddress);
+
+  const { pda: delegationPda } = await getPDAAndBump(
+    PROGRAM_ID,
+    ["delegation", ownerAddress]
+  );
 
   const connection = connect(rpcUrl);
   const accountInfo = await connection.rpc.getAccountInfo(delegationPda, {

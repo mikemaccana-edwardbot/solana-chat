@@ -9,6 +9,7 @@ import {
   getAddressFromPublicKey,
   createSolanaRpcFromTransport,
   createDefaultRpcTransport,
+  getCompiledTransactionMessageEncoder,
   pipe,
   type Address,
   type Instruction,
@@ -44,32 +45,9 @@ function encodeRegisterData(homeserver: string): Uint8Array {
   return data;
 }
 
-/// Serialize a compiled transaction to the Solana wire format.
-/// Format: compact-u16 signature count + 64-byte signatures + message bytes.
-function serializeTransaction(compiledTransaction: {
-  messageBytes: ReadonlyUint8Array;
-  signatures: ReadonlyArray<ReadonlyUint8Array | null>;
-}): Uint8Array {
-  const signatureCount = compiledTransaction.signatures.length;
-  const totalLength = 1 + signatureCount * 64 + compiledTransaction.messageBytes.length;
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  // Compact-u16: for small counts (<128), it's a single byte
-  result[offset] = signatureCount;
-  offset += 1;
-  for (const signature of compiledTransaction.signatures) {
-    if (signature) {
-      result.set(signature, offset);
-    }
-    // Leave zeros for null signatures (to be filled by wallet)
-    offset += 64;
-  }
-  result.set(compiledTransaction.messageBytes, offset);
-  return result;
-}
-
 /// Register a homeserver delegation onchain.
-/// Builds the transaction, has the wallet sign and send it, returns the signature.
+/// Builds the transaction message, serializes it, and hands it to the wallet
+/// to sign and send in one step.
 export async function registerHomeserverOnchain(
   wallet: SolanaWallet,
   homeserver: string,
@@ -108,22 +86,19 @@ export async function registerHomeserverOnchain(
 
   const compiledTransaction = compileTransaction(transactionMessage);
 
-  // Serialize the unsigned transaction for the wallet to sign
-  const unsignedBytes = serializeTransaction({
-    messageBytes: compiledTransaction.messageBytes,
-    signatures: [null], // one signer (owner), placeholder for wallet to fill
-  });
+  // Serialize the compiled transaction to wire format.
+  // The wallet will add its signature and submit to the network.
+  const messageBytes = new Uint8Array(compiledTransaction.messageBytes);
+  const signatureKeys = Object.keys(compiledTransaction.signatures);
+  const signatureCount = signatureKeys.length;
+  // Wire format: compact-u16(sig count) + empty 64-byte sig slots + message bytes
+  const serialized = new Uint8Array(1 + signatureCount * 64 + messageBytes.length);
+  serialized[0] = signatureCount;
+  // Leave signature slots zeroed — the wallet fills them
+  serialized.set(messageBytes, 1 + signatureCount * 64);
 
-  // Use the wallet provider to sign and send
-  const signedBytes = await wallet.signTransaction(unsignedBytes);
-
-  // Send the signed transaction via RPC
-  const base64Encoded = btoa(String.fromCharCode(...signedBytes));
-  const txSignature = await rpc.sendTransaction(base64Encoded as never, {
-    encoding: "base64" as never,
-  }).send();
-
-  return String(txSignature);
+  const txSignature = await wallet.signAndSendTransaction(serialized);
+  return txSignature;
 }
 
 /// Look up a wallet's homeserver delegation onchain.
@@ -154,10 +129,3 @@ export async function lookupHomeserver(
 
   return homeserver;
 }
-
-/// ReadonlyUint8Array type for compatibility with Kit's branded types.
-type ReadonlyUint8Array = {
-  readonly length: number;
-  readonly [index: number]: number;
-  [Symbol.iterator](): IterableIterator<number>;
-};

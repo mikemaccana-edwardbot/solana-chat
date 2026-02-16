@@ -10,7 +10,7 @@ export type AppStage =
 export interface SolanaWallet {
   publicKey: Uint8Array;
   signMessage(message: Uint8Array): Promise<Uint8Array>;
-  signTransaction(transaction: Uint8Array): Promise<Uint8Array>;
+  signAndSendTransaction(transaction: Uint8Array): Promise<string>;
 }
 
 /// Challenge response from the homeserver's nonce endpoint.

@@ -20,12 +20,14 @@ export async function connectWallet(): Promise<SolanaWallet> {
       const { signature } = await provider.signMessage(message, "utf8");
       return new Uint8Array(signature);
     },
-    signTransaction: async (transaction: Uint8Array) => {
-      const { signature } = await provider.request({
-        method: "signTransaction",
-        params: { message: Buffer.from(transaction).toString("base64") },
+    signAndSendTransaction: async (serializedTransaction: Uint8Array) => {
+      // Phantom/Solflare signAndSendTransaction accepts a versioned transaction
+      // and returns the signature directly. The wallet handles signing and
+      // submitting to the network.
+      const { signature } = await provider.signAndSendTransaction({
+        serialize: () => serializedTransaction,
       });
-      return new Uint8Array(Buffer.from(signature, "base64"));
+      return signature;
     },
   };
 }

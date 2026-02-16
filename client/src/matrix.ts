@@ -105,6 +105,28 @@ export function onNewMessage(
   });
 }
 
+/// Create or find an existing direct message room with a user.
+export async function startDirectMessage(userId: string): Promise<string> {
+  if (!client) throw new Error("Matrix client not initialized");
+
+  // Check if we already have a DM with this user
+  const existingRooms = client.getRooms();
+  for (const room of existingRooms) {
+    const members = room.getJoinedMembers();
+    if (members.length === 2 && members.some((member) => member.userId === userId)) {
+      return room.roomId;
+    }
+  }
+
+  // Create a new DM room
+  const result = await client.createRoom({
+    is_direct: true,
+    invite: [userId],
+    preset: sdk.Preset.TrustedPrivateChat,
+  });
+  return result.room_id;
+}
+
 /// Get a user's display name (base58 address or .sol name).
 export async function getDisplayName(userId: string): Promise<string> {
   if (!client) return userId;

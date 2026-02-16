@@ -7,9 +7,19 @@ import {
   onNewMessage,
   getDisplayName,
 } from "../matrix";
+import { FindUser } from "./FindUser";
 
 interface ChatProps {
   homeserverUrl: string;
+}
+
+/// Extract the domain from a homeserver URL (e.g. "https://chat.example.com" → "chat.example.com")
+function homeserverDomain(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
 }
 
 export function Chat({ homeserverUrl }: ChatProps) {
@@ -76,6 +86,13 @@ export function Chat({ homeserverUrl }: ChatProps) {
   return (
     <section className="chat">
       <nav className="room-list">
+        <FindUser
+          homeserverDomain={homeserverDomain(homeserverUrl)}
+          onRoomCreated={(roomId) => {
+            setRooms(getJoinedRooms());
+            setActiveRoomId(roomId);
+          }}
+        />
         <h3>Rooms</h3>
         {rooms.map((room) => (
           <button

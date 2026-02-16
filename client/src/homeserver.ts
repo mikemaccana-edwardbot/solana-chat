@@ -5,7 +5,7 @@ import { registerHomeserverOnchain as registerOnchain } from "./program";
 
 /// Request a nonce challenge from the homeserver.
 async function fetchNonce(homeserverUrl: string, walletAddress: string): Promise<NonceResponse> {
-  const response = await fetch(`${homeserverUrl}/_solana/auth/nonce`, {
+  const response = await fetch(`${homeserverUrl}/_matrix/client/unstable/org.solana.auth/nonce`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ address: walletAddress }),

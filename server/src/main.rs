@@ -322,15 +322,9 @@ async fn solana_nonce_handler(
 
 fn routes(config: &Config) -> Router {
     let router = Router::new()
-        // Solana auth nonce endpoint (not a ruma route — it's our own API).
-        // Registered at both the Matrix-namespaced unstable path and the shorter
-        // /_solana/auth/nonce path that the Solana Chat client expects.
+        // Solana auth nonce endpoint (not a ruma route — it's our own API)
         .route(
             "/_matrix/client/unstable/org.solana.auth/nonce",
-            axum::routing::post(solana_nonce_handler),
-        )
-        .route(
-            "/_solana/auth/nonce",
             axum::routing::post(solana_nonce_handler),
         )
         .ruma_route(client_server::ping_appservice_route)

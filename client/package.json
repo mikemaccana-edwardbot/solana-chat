@@ -11,6 +11,8 @@
   "dependencies": {
     "@solana/kit": "^5.5.1",
     "@solana/react": "^6.0.1",
+    "@wallet-standard/react": "^1.0.1",
+    "@wallet-standard/ui": "^1.0.1",
     "matrix-js-sdk": "^40.2.0",
     "react": "^19",
     "react-dom": "^19",

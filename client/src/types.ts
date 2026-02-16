@@ -6,13 +6,6 @@ export type AppStage =
   | "logging-in"
   | "chat";
 
-/// A connected Solana wallet exposing the methods we need.
-export interface SolanaWallet {
-  publicKey: Uint8Array;
-  signMessage(message: Uint8Array): Promise<Uint8Array>;
-  signAndSendTransaction(transaction: Uint8Array): Promise<string>;
-}
-
 /// Challenge response from the homeserver's nonce endpoint.
 export interface NonceResponse {
   nonce: string;

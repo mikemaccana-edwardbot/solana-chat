@@ -1,69 +1,38 @@
-import { useState } from "react";
-import type { AppStage, SolanaWallet } from "./types";
+import { useState, useMemo } from "react";
+import { useWalletAccountTransactionSigner } from "@solana/react";
+import { useWalletAccountMessageSigner } from "@solana/react";
+import type { UiWalletAccount } from "@wallet-standard/ui";
+import type { AppStage } from "./types";
 import { ConnectWallet } from "./components/ConnectWallet";
 import { PickHomeserver } from "./components/PickHomeserver";
 import { StatusScreen } from "./components/StatusScreen";
 import { Chat } from "./components/Chat";
-import { connectWallet, publicKeyToBase58 } from "./wallet";
 import { loginToHomeserver, registerHomeserverOnchain } from "./homeserver";
 import { initMatrixClient, startSync } from "./matrix";
 
 export function App() {
   const [stage, setStage] = useState<AppStage>("connect-wallet");
-  const [wallet, setWallet] = useState<SolanaWallet | null>(null);
+  const [walletAccount, setWalletAccount] = useState<UiWalletAccount | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState("");
   const [homeserverUrl, setHomeserverUrl] = useState("");
 
-  async function handleConnect() {
-    try {
-      setError("");
-      const connectedWallet = await connectWallet();
-      setWallet(connectedWallet);
-      setStage("pick-homeserver");
-    } catch (thrownObject) {
-      const error = thrownObject instanceof Error ? thrownObject : new Error(String(thrownObject));
-      setError(error.message);
-    }
+  const walletAddress = walletAccount?.address ?? "";
+
+  function handleWalletConnected(account: UiWalletAccount) {
+    setWalletAccount(account);
+    setStage("pick-homeserver");
   }
-
-  async function handleHomeserverSelected(url: string) {
-    if (!wallet) return;
-    setHomeserverUrl(url);
-
-    try {
-      setError("");
-
-      // Step 1: Register homeserver onchain
-      setStage("registering");
-      setStatusMessage("Registering homeserver onchain...");
-      await registerHomeserverOnchain(wallet, url);
-
-      // Step 2: Log in to the homeserver
-      setStage("logging-in");
-      setStatusMessage("Signing in to homeserver...");
-      const { accessToken, userId } = await loginToHomeserver(url, wallet);
-
-      // Step 3: Initialize Matrix client and sync
-      setStatusMessage("Syncing...");
-      initMatrixClient(url, accessToken, userId);
-      await startSync();
-
-      setStage("chat");
-    } catch (thrownObject) {
-      const error = thrownObject instanceof Error ? thrownObject : new Error(String(thrownObject));
-      setError(error.message);
-      setStage("pick-homeserver");
-    }
-  }
-
-  const address = wallet ? publicKeyToBase58(wallet.publicKey) : "";
 
   return (
     <main className="app">
       <header className="app-header">
         <h1>Solana Chat</h1>
-        {address && <span className="wallet-address" title={address}>{truncateAddress(address)}</span>}
+        {walletAddress && (
+          <span className="wallet-address" title={walletAddress}>
+            {truncateAddress(walletAddress)}
+          </span>
+        )}
       </header>
 
       {error && (
@@ -74,11 +43,18 @@ export function App() {
       )}
 
       {stage === "connect-wallet" && (
-        <ConnectWallet onConnect={handleConnect} />
+        <ConnectWallet onConnected={handleWalletConnected} />
       )}
 
-      {stage === "pick-homeserver" && (
-        <PickHomeserver onSelect={handleHomeserverSelected} />
+      {stage === "pick-homeserver" && walletAccount && (
+        <HomeserverFlow
+          walletAccount={walletAccount}
+          walletAddress={walletAddress}
+          onStageChange={setStage}
+          onStatusChange={setStatusMessage}
+          onError={setError}
+          onHomeserverUrl={setHomeserverUrl}
+        />
       )}
 
       {(stage === "registering" || stage === "logging-in") && (
@@ -90,6 +66,59 @@ export function App() {
       )}
     </main>
   );
+}
+
+/// Handles the homeserver selection, onchain registration, and login.
+/// Separated into its own component so @solana/react hooks have
+/// a stable walletAccount reference.
+function HomeserverFlow({
+  walletAccount,
+  walletAddress,
+  onStageChange,
+  onStatusChange,
+  onError,
+  onHomeserverUrl,
+}: {
+  walletAccount: UiWalletAccount;
+  walletAddress: string;
+  onStageChange: (stage: AppStage) => void;
+  onStatusChange: (message: string) => void;
+  onError: (error: string) => void;
+  onHomeserverUrl: (url: string) => void;
+}) {
+  const transactionSigner = useWalletAccountTransactionSigner(walletAccount, "solana:devnet");
+  const messageSigner = useWalletAccountMessageSigner(walletAccount);
+
+  async function handleHomeserverSelected(url: string) {
+    onHomeserverUrl(url);
+
+    try {
+      onError("");
+
+      // Step 1: Register homeserver onchain
+      onStageChange("registering");
+      onStatusChange("Registering homeserver onchain...");
+      await registerHomeserverOnchain(transactionSigner, url);
+
+      // Step 2: Log in to the homeserver
+      onStageChange("logging-in");
+      onStatusChange("Signing in to homeserver...");
+      const { accessToken, userId } = await loginToHomeserver(url, walletAddress, messageSigner);
+
+      // Step 3: Initialize Matrix client and sync
+      onStatusChange("Syncing...");
+      initMatrixClient(url, accessToken, userId);
+      await startSync();
+
+      onStageChange("chat");
+    } catch (thrownObject) {
+      const error = thrownObject instanceof Error ? thrownObject : new Error(String(thrownObject));
+      onError(error.message);
+      onStageChange("pick-homeserver");
+    }
+  }
+
+  return <PickHomeserver onSelect={handleHomeserverSelected} />;
 }
 
 function truncateAddress(address: string): string {

@@ -1,20 +1,11 @@
 import {
   address,
-  createTransactionMessage,
-  setTransactionMessageFeePayer,
-  setTransactionMessageLifetimeUsingBlockhash,
-  appendTransactionMessageInstruction,
-  compileTransaction,
   getProgramDerivedAddress,
-  getAddressFromPublicKey,
-  createSolanaRpcFromTransport,
-  createDefaultRpcTransport,
-  getCompiledTransactionMessageEncoder,
-  pipe,
   type Address,
   type Instruction,
+  type TransactionModifyingSigner,
 } from "@solana/kit";
-import type { SolanaWallet } from "./types";
+import { connect } from "solana-kite";
 import { base58ToBytes, borshEncodeString, borshDecodeString } from "./encoding";
 
 /// The homeserver-registry program ID.
@@ -46,21 +37,14 @@ function encodeRegisterData(homeserver: string): Uint8Array {
 }
 
 /// Register a homeserver delegation onchain.
-/// Builds the transaction message, serializes it, and hands it to the wallet
-/// to sign and send in one step.
+/// Uses Kite's sendTransactionFromInstructionsWithWalletApp — it handles
+/// blockhash, transaction building, signing via the browser wallet, and sending.
 export async function registerHomeserverOnchain(
-  wallet: SolanaWallet,
+  transactionSigner: TransactionModifyingSigner,
   homeserver: string,
   rpcUrl: string = "https://api.devnet.solana.com"
 ): Promise<string> {
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    wallet.publicKey.buffer as ArrayBuffer,
-    { name: "Ed25519" },
-    true,
-    ["verify"]
-  );
-  const ownerAddress = await getAddressFromPublicKey(cryptoKey);
+  const ownerAddress = transactionSigner.address;
   const [delegationPda] = await deriveDelegationPda(ownerAddress);
 
   const instruction: Instruction = {
@@ -73,32 +57,13 @@ export async function registerHomeserverOnchain(
     data: encodeRegisterData(homeserver),
   };
 
-  const transport = createDefaultRpcTransport({ url: rpcUrl });
-  const rpc = createSolanaRpcFromTransport(transport);
-  const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+  const connection = connect(rpcUrl);
+  const signature = await connection.sendTransactionFromInstructionsWithWalletApp({
+    feePayer: transactionSigner,
+    instructions: [instruction],
+  });
 
-  const transactionMessage = pipe(
-    createTransactionMessage({ version: 0 }),
-    (message) => setTransactionMessageFeePayer(ownerAddress, message),
-    (message) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, message),
-    (message) => appendTransactionMessageInstruction(instruction, message),
-  );
-
-  const compiledTransaction = compileTransaction(transactionMessage);
-
-  // Serialize the compiled transaction to wire format.
-  // The wallet will add its signature and submit to the network.
-  const messageBytes = new Uint8Array(compiledTransaction.messageBytes);
-  const signatureKeys = Object.keys(compiledTransaction.signatures);
-  const signatureCount = signatureKeys.length;
-  // Wire format: compact-u16(sig count) + empty 64-byte sig slots + message bytes
-  const serialized = new Uint8Array(1 + signatureCount * 64 + messageBytes.length);
-  serialized[0] = signatureCount;
-  // Leave signature slots zeroed — the wallet fills them
-  serialized.set(messageBytes, 1 + signatureCount * 64);
-
-  const txSignature = await wallet.signAndSendTransaction(serialized);
-  return txSignature;
+  return String(signature);
 }
 
 /// Look up a wallet's homeserver delegation onchain.
@@ -110,10 +75,8 @@ export async function lookupHomeserver(
   const ownerAddress = address(walletAddress);
   const [delegationPda] = await deriveDelegationPda(ownerAddress);
 
-  const transport = createDefaultRpcTransport({ url: rpcUrl });
-  const rpc = createSolanaRpcFromTransport(transport);
-
-  const accountInfo = await rpc.getAccountInfo(delegationPda, {
+  const connection = connect(rpcUrl);
+  const accountInfo = await connection.rpc.getAccountInfo(delegationPda, {
     encoding: "base64" as never,
   }).send();
 

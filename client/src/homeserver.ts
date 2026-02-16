@@ -1,14 +1,14 @@
-import type { SolanaWallet, NonceResponse } from "./types";
-import { bytesToBase58 } from "./encoding";
-import { publicKeyToBase58 } from "./wallet";
+import type { MessageModifyingSigner, TransactionModifyingSigner } from "@solana/kit";
+import type { NonceResponse } from "./types";
+import { connect } from "solana-kite";
 import { registerHomeserverOnchain as registerOnchain } from "./program";
 
 /// Request a nonce challenge from the homeserver.
-async function fetchNonce(homeserverUrl: string, address: string): Promise<NonceResponse> {
+async function fetchNonce(homeserverUrl: string, walletAddress: string): Promise<NonceResponse> {
   const response = await fetch(`${homeserverUrl}/_solana/auth/nonce`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ address }),
+    body: JSON.stringify({ address: walletAddress }),
   });
   if (!response.ok) {
     throw new Error(`Failed to get nonce: ${response.statusText}`);
@@ -17,20 +17,21 @@ async function fetchNonce(homeserverUrl: string, address: string): Promise<Nonce
 }
 
 /// Log in to the homeserver using Solana wallet signature.
+/// Uses Kite's signMessageFromWalletApp via the Connection object to get the
+/// wallet to sign the nonce challenge off-chain.
 /// Returns the Matrix access token and user ID.
 export async function loginToHomeserver(
   homeserverUrl: string,
-  wallet: SolanaWallet
+  walletAddress: string,
+  messageSigner: MessageModifyingSigner,
+  rpcUrl: string = "https://api.devnet.solana.com"
 ): Promise<{ accessToken: string; userId: string; deviceId: string }> {
-  const base58Address = publicKeyToBase58(wallet.publicKey);
-
   // Step 1: Get a nonce challenge from the server
-  const { nonce, message } = await fetchNonce(homeserverUrl, base58Address);
+  const { nonce, message } = await fetchNonce(homeserverUrl, walletAddress);
 
-  // Step 2: Sign the challenge message with the wallet
-  const messageBytes = new TextEncoder().encode(message);
-  const signatureBytes = await wallet.signMessage(messageBytes);
-  const signatureBase58 = bytesToBase58(signatureBytes);
+  // Step 2: Sign the challenge message using the wallet via Kite
+  const connection = connect(rpcUrl);
+  const signatureBase58 = await connection.signMessageFromWalletApp(message, messageSigner);
 
   // Step 3: Send the signed challenge to the Matrix login endpoint
   const loginResponse = await fetch(`${homeserverUrl}/_matrix/client/v3/login`, {
@@ -38,7 +39,7 @@ export async function loginToHomeserver(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       type: "m.login.solana.signature",
-      address: base58Address,
+      address: walletAddress,
       signature: signatureBase58,
       nonce,
     }),
@@ -59,12 +60,11 @@ export async function loginToHomeserver(
   };
 }
 
-/// Register a homeserver delegation onchain.
-/// Calls the homeserver-registry Anchor program to create or update
-/// the wallet's delegation PDA.
+/// Register a homeserver delegation onchain using Kite + Kit TransactionModifyingSigner.
 export async function registerHomeserverOnchain(
-  wallet: SolanaWallet,
-  homeserver: string
+  transactionSigner: TransactionModifyingSigner,
+  homeserver: string,
+  rpcUrl: string = "https://api.devnet.solana.com"
 ): Promise<string> {
-  return registerOnchain(wallet, homeserver);
+  return registerOnchain(transactionSigner, homeserver, rpcUrl);
 }

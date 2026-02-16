@@ -1,0 +1,24 @@
+# Build stage
+FROM rust:1.85-bookworm AS builder
+
+WORKDIR /build
+COPY . .
+
+# Build with SQLite backend (lighter, no external deps)
+RUN cargo build --release --no-default-features --features="conduit_bin,backend_sqlite"
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /build/target/release/conduit /usr/local/bin/conduit
+COPY --from=builder /build/web-client /web-client
+
+# Default config location
+ENV CONDUIT_CONFIG=/etc/conduit/conduit.toml
+
+EXPOSE 6167
+VOLUME ["/var/lib/conduit"]
+
+CMD ["conduit"]

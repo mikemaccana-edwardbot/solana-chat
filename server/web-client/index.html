@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solana Matrix Chat</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      max-width: 420px;
+      width: 100%;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #9945FF, #14F195);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: #888;
+      margin-bottom: 2rem;
+      font-size: 0.9rem;
+    }
+
+    #connect-button {
+      background: linear-gradient(135deg, #9945FF, #14F195);
+      color: #000;
+      border: none;
+      padding: 14px 32px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      transition: opacity 0.2s;
+    }
+
+    #connect-button:hover { opacity: 0.9; }
+    #connect-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    #status {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 8px;
+      display: none;
+      word-break: break-all;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    #status.info { display: block; background: #1a1a2e; border: 1px solid #333; }
+    #status.success { display: block; background: #0a2a1a; border: 1px solid #14F195; }
+    #status.error { display: block; background: #2a0a0a; border: 1px solid #f14545; color: #f14545; }
+
+    .address {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      color: #14F195;
+    }
+
+    .element-link {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 10px 24px;
+      background: #1a73e8;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+
+    .element-link:hover { background: #1565c0; }
+
+    footer {
+      margin-top: 3rem;
+      color: #555;
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Solana Matrix Chat</h1>
+    <p class="subtitle">Connect your Solana wallet to join the chat</p>
+
+    <button id="connect-button" onclick="connectWallet()">Connect Wallet</button>
+
+    <div id="status"></div>
+
+    <footer>
+      Powered by <a href="https://conduit.rs" style="color:#888">Conduit</a> +
+      <a href="https://matrix.org" style="color:#888">Matrix</a>
+    </footer>
+  </div>
+
+  <script>
+    // Configuration — update these for your deployment
+    const HOMESERVER_URL = window.location.origin;
+    const ELEMENT_URL = 'https://app.element.io';
+
+    const statusElement = document.getElementById('status');
+    const connectButton = document.getElementById('connect-button');
+
+    function setStatus(message, type = 'info') {
+      statusElement.className = type;
+      statusElement.innerHTML = message;
+    }
+
+    async function connectWallet() {
+      try {
+        connectButton.disabled = true;
+        connectButton.textContent = 'Connecting...';
+
+        // Check for Solana wallet (Phantom, Solflare, Backpack, etc.)
+        const provider = getWalletProvider();
+        if (!provider) {
+          setStatus('No Solana wallet found. Please install <a href="https://phantom.app" style="color:#14F195">Phantom</a> or another Solana wallet.', 'error');
+          return;
+        }
+
+        // Connect to the wallet
+        const response = await provider.connect();
+        const publicKey = response.publicKey;
+        const address = publicKey.toBase58();
+
+        setStatus(`Connected as <span class="address">${address}</span>. Signing challenge...`, 'info');
+
+        // Request a nonce from the server
+        const nonceResponse = await fetch(`${HOMESERVER_URL}/_matrix/client/unstable/org.solana.auth/nonce`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address }),
+        });
+
+        if (!nonceResponse.ok) {
+          throw new Error(`Server returned ${nonceResponse.status}: ${await nonceResponse.text()}`);
+        }
+
+        const { nonce, message } = await nonceResponse.json();
+
+        // Ask the wallet to sign the challenge message
+        const encodedMessage = new TextEncoder().encode(message);
+        const signatureResponse = await provider.signMessage(encodedMessage, 'utf8');
+        const signature = bs58encode(signatureResponse.signature);
+
+        setStatus('Signature verified locally. Logging in...', 'info');
+
+        // Submit the signature to the Matrix login endpoint
+        const loginResponse = await fetch(`${HOMESERVER_URL}/_matrix/client/v3/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'm.login.solana.signature',
+            address,
+            signature,
+            nonce,
+            initial_device_display_name: 'Solana Matrix Chat (Web)',
+          }),
+        });
+
+        if (!loginResponse.ok) {
+          const error = await loginResponse.json();
+          throw new Error(error.error || `Login failed: ${loginResponse.status}`);
+        }
+
+        const loginData = await loginResponse.json();
+
+        setStatus(
+          `Logged in as <span class="address">${address}</span>` +
+          `<br><br>Matrix ID: <span style="color:#999">${loginData.user_id}</span>` +
+          `<br><br><a class="element-link" href="${ELEMENT_URL}/#/login" target="_blank">Open Element Web</a>` +
+          `<br><br><small style="color:#666">Access token saved to clipboard. ` +
+          `Use it in Element or your preferred Matrix client.</small>`,
+          'success'
+        );
+
+        // Copy access token to clipboard for use in other clients
+        try {
+          await navigator.clipboard.writeText(loginData.access_token);
+        } catch {
+          // Clipboard access may be blocked — not critical
+        }
+
+        connectButton.textContent = 'Connected ✓';
+
+      } catch (error) {
+        console.error('Login error:', error);
+        setStatus(`Error: ${error.message}`, 'error');
+        connectButton.disabled = false;
+        connectButton.textContent = 'Connect Wallet';
+      }
+    }
+
+    // Find the first available Solana wallet provider
+    function getWalletProvider() {
+      if (window.phantom?.solana?.isPhantom) return window.phantom.solana;
+      if (window.solflare?.isSolflare) return window.solflare;
+      if (window.backpack?.isBackpack) return window.backpack;
+      if (window.solana) return window.solana;
+      return null;
+    }
+
+    // Base58 encode bytes (matching Solana's encoding)
+    function bs58encode(bytes) {
+      const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+      const d = [];
+      let s = '';
+      let i, j, carry;
+
+      for (i = 0; i < bytes.length; i++) {
+        j = 0;
+        carry = bytes[i];
+        s += carry || s.length ^ i ? '' : '1';
+        while (j in d || carry) {
+          carry += (d[j] || 0) * 256;
+          d[j] = carry % 58;
+          carry = (carry / 58) | 0;
+          j++;
+        }
+      }
+
+      while (j--) s += ALPHABET[d[j]];
+      return s;
+    }
+  </script>
+</body>
+</html>

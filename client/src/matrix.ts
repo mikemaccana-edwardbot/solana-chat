@@ -127,6 +127,22 @@ export async function startDirectMessage(userId: string): Promise<string> {
   return result.room_id;
 }
 
+/// Create a group chat room with a name and invite members by wallet-derived user IDs.
+export async function createGroupChat(
+  name: string,
+  inviteUserIds: Array<string>
+): Promise<string> {
+  if (!client) throw new Error("Matrix client not initialized");
+
+  const result = await client.createRoom({
+    name,
+    invite: inviteUserIds,
+    preset: sdk.Preset.PrivateChat,
+    visibility: sdk.Visibility.Private,
+  });
+  return result.room_id;
+}
+
 /// Get a user's display name (base58 address or .sol name).
 export async function getDisplayName(userId: string): Promise<string> {
   if (!client) return userId;

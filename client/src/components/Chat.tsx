@@ -8,6 +8,7 @@ import {
   getDisplayName,
 } from "../matrix";
 import { FindUser } from "./FindUser";
+import { CreateGroup } from "./CreateGroup";
 
 interface ChatProps {
   homeserverUrl: string;
@@ -87,6 +88,13 @@ export function Chat({ homeserverUrl }: ChatProps) {
     <section className="chat">
       <nav className="room-list">
         <FindUser
+          homeserverDomain={homeserverDomain(homeserverUrl)}
+          onRoomCreated={(roomId) => {
+            setRooms(getJoinedRooms());
+            setActiveRoomId(roomId);
+          }}
+        />
+        <CreateGroup
           homeserverDomain={homeserverDomain(homeserverUrl)}
           onRoomCreated={(roomId) => {
             setRooms(getJoinedRooms());

@@ -1,5 +1,6 @@
 import type { SolanaWallet, NonceResponse } from "./types";
-import { publicKeyToBase58, publicKeyToHex } from "./wallet";
+import { publicKeyToBase58 } from "./wallet";
+import { registerHomeserverOnchain as registerOnchain } from "./program";
 
 /// Request a nonce challenge from the homeserver.
 async function fetchNonce(homeserverUrl: string, address: string): Promise<NonceResponse> {
@@ -80,19 +81,12 @@ export async function loginToHomeserver(
   };
 }
 
-/// Register the homeserver delegation onchain.
-/// For MVP this is a placeholder — the actual Anchor transaction
-/// will be wired up once we add @solana/react and the program IDL.
+/// Register a homeserver delegation onchain.
+/// Calls the homeserver-registry Anchor program to create or update
+/// the wallet's delegation PDA.
 export async function registerHomeserverOnchain(
-  _wallet: SolanaWallet,
-  _homeserver: string
+  wallet: SolanaWallet,
+  homeserver: string
 ): Promise<string> {
-  // TODO: Wire up the actual Anchor program call using @solana/kit
-  // For now, return a mock signature to unblock the UI flow.
-  // The registration flow:
-  // 1. Derive PDA from wallet address
-  // 2. Call homeserver_registry.register(homeserver)
-  // 3. Return the transaction signature
-  console.log("Onchain registration will be wired up with @solana/kit");
-  return "mock-signature";
+  return registerOnchain(wallet, homeserver);
 }

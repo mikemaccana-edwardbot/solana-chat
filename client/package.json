@@ -8,9 +8,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@solana/kit": "^5.5.1",
+    "@solana/react": "^6.0.1",
     "matrix-js-sdk": "^40.2.0",
     "react": "^19",
-    "react-dom": "^19"
+    "react-dom": "^19",
+    "solana-kite": "^3.2.0"
   },
   "devDependencies": {
     "@types/react": "^19",

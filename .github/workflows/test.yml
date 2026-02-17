@@ -12,12 +12,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: coral-xyz/anchor-action@v0.5.0
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
-          solana-cli-version: 3.1.8
-          anchor-version: 0.32.1
-      - run: anchor test
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v2.1.21/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+      - name: Install Anchor CLI
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag v0.32.1 anchor-cli
+      - name: Run Anchor tests
+        run: |
+          solana-keygen new --no-bip39-passphrase
+          anchor test
 
   client:
     name: Client Tests

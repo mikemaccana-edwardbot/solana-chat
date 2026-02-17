@@ -1,0 +1,38 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  anchor:
+    name: Anchor Program Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: coral-xyz/anchor-action@v0.5.0
+        with:
+          node-version: 22
+          solana-cli-version: 3.1.8
+          anchor-version: 0.32.1
+      - run: anchor test
+
+  client:
+    name: Client Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: cd client && npm install && npm test && npm run build
+
+  server:
+    name: Server Auth Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cd server/tests-rs && cargo test

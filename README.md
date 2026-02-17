@@ -1,6 +1,6 @@
 # Solana Chat
 
-[![Test](https://github.com/mikemaccana-edwardbot/solana-chat/actions/workflows/test.yml/badge.svg)](https://github.com/mikemaccana-edwardbot/solana-chat/actions/workflows/test.yml)
+[![Tests](https://github.com/mikemaccana-edwardbot/solana-chat/actions/workflows/test.yml/badge.svg)](https://github.com/mikemaccana-edwardbot/solana-chat/actions/workflows/test.yml)
 
 Decentralised chat where your Solana wallet is your identity. No phone numbers, no email signups, no single server controlling the network.
 

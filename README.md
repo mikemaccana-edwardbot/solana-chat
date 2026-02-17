@@ -140,40 +140,119 @@ The base58 address is stored as the Matrix display name so users see the familia
 | Display name | `7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU` |
 | Onchain PDA seeds | `["delegation", raw_pubkey_bytes]` |
 
-## Running
+## Running a Proof of Concept
+
+This walks through getting all three components running locally so you can connect a wallet and chat.
 
 ### Prerequisites
 
 - Node.js 22+
 - Rust (stable)
-- Solana CLI 3.1.8+
-- Anchor CLI 0.32.1+
+- Solana CLI 3.1.8+ (`sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"`)
+- Anchor CLI 0.32.1+ (`cargo install --git https://github.com/coral-xyz/anchor anchor-cli`)
+- A Solana wallet browser extension (Phantom, Solflare, or Backpack)
 
-### Homeserver Registry
+### 1. Deploy the Homeserver Registry to Devnet
 
 ```bash
+# Configure Solana CLI for devnet
+solana config set --url https://api.devnet.solana.com
+
+# Fund your deployer wallet (needs ~2 SOL for program deployment)
+solana airdrop 2
+
+# Build and deploy the program
 anchor build
-anchor test
+anchor deploy --provider.cluster devnet
+
+# Note the program ID from the output — update client/src/program.ts if different
+# Current program ID: 27JU28YBf5RJmEHAn9BwnWFyfPMLkUdSafKgz9xQB9zn
 ```
 
-### Client
+Verify it deployed:
+```bash
+solana program show 27JU28YBf5RJmEHAn9BwnWFyfPMLkUdSafKgz9xQB9zn --url devnet
+```
+
+### 2. Run the Homeserver (Conduit)
+
+The server needs ≥4GB RAM to compile in debug mode, or use `--release` with `CARGO_BUILD_JOBS=1` on smaller machines.
+
+```bash
+cd server
+
+# Build (release mode recommended — faster runtime, smaller binary)
+cargo build --release --features conduit_bin,backend_sqlite
+
+# Create a config file
+mkdir -p /tmp/conduit
+cat > /tmp/conduit/conduit.toml << 'EOF'
+[global]
+server_name = "localhost"
+database_path = "/tmp/conduit/db"
+database_backend = "sqlite"
+port = 6167
+max_request_size = 20_000_000
+allow_registration = false
+allow_federation = false
+allow_check_for_updates = false
+trusted_servers = ["matrix.org"]
+
+# Enable Solana wallet authentication
+allow_solana_auth = true
+EOF
+
+# Run the server
+./target/release/conduit
+```
+
+The server will start on `http://localhost:6167`. Verify it's running:
+```bash
+curl http://localhost:6167/_matrix/client/versions
+```
+
+The nonce endpoint should also be available:
+```bash
+curl -X POST http://localhost:6167/_matrix/client/unstable/org.solana.auth/nonce \
+  -H "Content-Type: application/json" \
+  -d '{"address":"7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"}'
+```
+
+### 3. Run the Client
 
 ```bash
 cd client
 npm install
-npm run dev    # dev server on localhost:5173
-npm test       # unit tests
-npm run build  # production build to client/dist/
+
+# Point at your local homeserver (edit src/components/PickHomeserver.tsx
+# DEFAULT_HOMESERVERS to include http://localhost:6167, or just type it
+# in the custom homeserver field when the UI loads)
+npm run dev
 ```
 
-### Server
+Open `http://localhost:5173` in a browser with a Solana wallet extension installed.
+
+### 4. End-to-End Flow
+
+1. Click **Connect Wallet** — approve the connection in your wallet
+2. The client checks for an existing onchain delegation. If none found, pick a homeserver.
+3. Enter `http://localhost:6167` as the homeserver URL
+4. **Approve the transaction** — this registers your wallet→homeserver delegation onchain (costs a fraction of a cent on devnet)
+5. **Sign the challenge** — the client requests a nonce, shows a message to sign (off-chain, no fees)
+6. You're in. The Matrix client syncs and you can create rooms, DM by wallet address, etc.
+
+### Run All Tests
 
 ```bash
-cd server
-cargo build
-```
+# Anchor program (10 tests)
+anchor test
 
-Configure `allow_solana_auth = true` in your Conduit config. See the [Conduit documentation](https://docs.conduit.rs/) for full server setup (database, domain, TLS, federation).
+# Client (18 tests)
+cd client && npm test
+
+# Server auth (13 tests) — standalone crate, no Conduit build required
+cd server/tests-rs && cargo test
+```
 
 ## Testing
 

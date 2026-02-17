@@ -26,6 +26,7 @@ jobs:
       - name: Run Anchor tests
         run: |
           solana-keygen new --no-bip39-passphrase
+          npm install
           anchor test
 
   client:
